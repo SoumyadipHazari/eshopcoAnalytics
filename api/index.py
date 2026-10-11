@@ -1,6 +1,7 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List
 from pathlib import Path
@@ -13,7 +14,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -37,10 +38,16 @@ def percentile95(values):
     lower = math.floor(position)
     upper = math.ceil(position)
 
-    return (
-        values[lower]
-        + (position - lower) * (values[upper] - values[lower])
+    return values[lower] + (position - lower) * (
+        values[upper] - values[lower]
     )
+
+
+@app.middleware("http")
+async def ensure_cors_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @app.get("/")
@@ -65,8 +72,6 @@ def analytics(request: AnalyticsRequest):
             )
 
         latencies = [float(row["latency_ms"]) for row in rows]
-
-        # The actual dataset field is uptime_pct, not uptime.
         uptimes = [float(row["uptime_pct"]) for row in rows]
 
         results[region] = {
